@@ -1,3 +1,12 @@
+require('dotenv').config(); // ← Add this as the first line
+
+const express = require('express');
+const bodyParser = require('body-parser');
+const cors = require('cors');
+const sequelize = require('./config/Database');
+const User = require('./models/User');
+// ...rest of your imports and code
+
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
@@ -81,3 +90,4 @@ const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
