@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import FingerprintJS from "@fingerprintjs/fingerprintjs";
 import styled, { keyframes } from "styled-components";
 import { ReactComponent as ThumbIdle } from "../thumb (2).svg";
 import { ReactComponent as ThumbScan } from "../thumbscan.svg";
 
+// Animations
 const scanAnimation = keyframes`
   0% { opacity: 0; transform: translateY(-100%);}
   50% { opacity: 1;}
@@ -16,6 +17,7 @@ const pulseAnimation = keyframes`
   100% { box-shadow: 0 0 0 0 rgba(32, 250, 252, 0);}
 `;
 
+// Styled Components
 const Container = styled.div`
   max-width: 350px;
   margin: 40px auto;
@@ -34,10 +36,10 @@ const Input = styled.input`
   padding: 0.7rem;
   width: 100%;
   border-radius: 5px;
-  border: line;
-  border-color:#232323;
-  border-thickness:5px;
+  border: 1px solid #444;
   font-size: 1rem;
+  background: #333;
+  color: #fff;
 `;
 
 const Button = styled.button`
@@ -49,6 +51,10 @@ const Button = styled.button`
   border-radius: 5px;
   font-weight: bold;
   cursor: pointer;
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
 `;
 
 const ScannerContainer = styled.div`
@@ -93,6 +99,7 @@ const ScanLine = styled.div`
   background: linear-gradient(90deg, transparent, #20FAFC, transparent);
   animation: ${scanAnimation} 2s linear infinite;
   display: ${props => props.isScanning ? 'block' : 'none'};
+  z-index: 1;
 `;
 
 const Status = styled.div`
@@ -102,7 +109,7 @@ const Status = styled.div`
   word-break: break-all;
 `;
 
-//Functionality
+// Main Component
 const AuthFingerprint = () => {
   const [phone, setPhone] = useState("");
   const [phase, setPhase] = useState("register"); // "register" or "login"
@@ -111,18 +118,11 @@ const AuthFingerprint = () => {
   const [success, setSuccess] = useState(null);
   const [visitorId, setVisitorId] = useState("");
 
-  // Check if already registered
-  useEffect(() => {
-    if (localStorage.getItem("fp_phone") && localStorage.getItem("fp_id")) {
-      setPhase("login");
-    }
-  }, []);
-
   // Handle Scan (used for both register and login)
   const handleScan = async () => {
     if (isScanning) return;
-    if (!phone.match(/^\d{10}$/)) {
-      setStatus("Enter a valid phone number.");
+    if (!phone.match(/^\d{10,}$/)) {
+      setStatus("Enter a valid phone number (10+ digits).");
       setSuccess(false);
       return;
     }
@@ -130,38 +130,40 @@ const AuthFingerprint = () => {
     setStatus("Scanning...");
     setSuccess(null);
 
-    // Simulate scanning animation
-    setTimeout(async () => {
+    try {
       const fp = await FingerprintJS.load();
       const result = await fp.get();
       setVisitorId(result.visitorId);
 
+      // Use backend API instead of localStorage
+      const endpoint = phase === "register" ? "/register" : "/login";
+      const response = await fetch(`http://localhost:3001${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, visitorId: result.visitorId }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Request failed");
+
       if (phase === "register") {
-        // Save to localStorage
-        localStorage.setItem("fp_phone", phone);
-        localStorage.setItem("fp_id", result.visitorId);
         setStatus("Registered! You can now login.");
         setSuccess(true);
         setPhase("login");
         setPhone("");
       } else {
-        // Login: compare values
-        const storedPhone = localStorage.getItem("fp_phone");
-        const storedId = localStorage.getItem("fp_id");
-        if (phone === storedPhone && result.visitorId === storedId) {
-          setStatus("Access Granted!");
-          setSuccess(true);
-        } else {
-          setStatus("Access Denied!");
-          setSuccess(false);
-        }
+        setStatus("Access Granted!");
+        setSuccess(true);
       }
+    } catch (error) {
+      setStatus(error.message || "An error occurred");
+      setSuccess(false);
+    } finally {
       setIsScanning(false);
-      // Hide visitorId after 4s if login
       if (phase === "login") {
         setTimeout(() => setVisitorId(""), 4000);
       }
-    }, 2000);
+    }
   };
 
   return (
@@ -180,13 +182,15 @@ const AuthFingerprint = () => {
         <ScanLine isScanning={isScanning} />
       </ScannerContainer>
       <Button onClick={handleScan} disabled={isScanning}>
-        {phase === "register" ? "Register" : "Login"} with Fingerprint
+        {isScanning
+          ? "Scanning..."
+          : `${phase === "register" ? "Register" : "Login"} with Fingerprint`}
       </Button>
       <Status success={success}>
         {status}
         {visitorId && (
           <div style={{ marginTop: 10, fontSize: '0.9rem', color: '#aaa' }}>
-            <strong>Fingerprint ID has been set</strong>
+            <strong>Fingerprint ID:</strong><br />{visitorId}
           </div>
         )}
       </Status>
@@ -194,8 +198,6 @@ const AuthFingerprint = () => {
         <Button
           style={{ marginTop: "2rem", background: "#444", color: "#fff" }}
           onClick={() => {
-            localStorage.removeItem("fp_phone");
-            localStorage.removeItem("fp_id");
             setPhase("register");
             setStatus("");
             setSuccess(null);
