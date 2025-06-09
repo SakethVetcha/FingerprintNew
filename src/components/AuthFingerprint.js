@@ -150,7 +150,28 @@ const AuthFingerprint = () => {
       } catch (e) {
         data = {};
       }
-      if (!response.ok) throw new Error(data.error || "Request failed");
+      if (!response.ok) {
+        // Show specific error messages for registration and login
+        if (phase === "register") {
+          if (data.error === "Phone already registered") {
+            setStatus("This phone number is already registered. Please login or use a different number.");
+          } else if (data.error === "Device already registered") {
+            setStatus("This fingerprint is already registered with another phone number.");
+          } else {
+            setStatus(data.error || "Registration failed");
+          }
+        } else {
+          if (data.error === "Phone not registered") {
+            setStatus("This phone number is not registered. Please register first.");
+          } else if (data.error === "Fingerprint mismatch") {
+            setStatus("Fingerprint does not match the registered device for this phone number.");
+          } else {
+            setStatus(data.error || "Login failed");
+          }
+        }
+        setSuccess(false);
+        return;
+      }
 
       if (phase === "register") {
         setStatus("Registered! You can now login.");
