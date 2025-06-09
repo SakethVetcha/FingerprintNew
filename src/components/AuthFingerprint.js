@@ -137,13 +137,19 @@ const AuthFingerprint = () => {
 
       // Use backend API instead of localStorage
       const endpoint = phase === "register" ? "/register" : "/login";
-      const response = await fetch(`http://localhost:3001${endpoint}`, {
+      const response = await fetch(`https://fingerprintnew.onrender.com${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone, visitorId: result.visitorId }),
       });
 
-      const data = await response.json();
+      let data = {};
+      const text = await response.text();
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch (e) {
+        data = {};
+      }
       if (!response.ok) throw new Error(data.error || "Request failed");
 
       if (phase === "register") {

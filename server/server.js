@@ -1,3 +1,6 @@
+// Load environment variables first
+require('dotenv').config();
+
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
@@ -6,10 +9,31 @@ const User = require('./models/User');
 const { Op } = require('sequelize');
 
 const app = express();
-app.use(bodyParser.json());
-app.use(cors());
 
-sequelize.sync();
+// HTTPS redirection for production
+app.use((req, res, next) => {
+  if (
+    process.env.NODE_ENV === 'production' &&
+    req.headers['x-forwarded-proto'] !== 'https'
+  ) {
+    return res.redirect('https://' + req.headers.host + req.url);
+  }
+  next();
+});
+
+// CORS configuration
+app.use(cors({
+  origin: 'https://fingerprintnew.onrender.com', // Replace with your frontend URL
+  methods: ['GET', 'POST'],
+  credentials: true
+}));
+
+app.use(bodyParser.json());
+
+// Database sync
+sequelize.sync()
+  .then(() => console.log('Database connected'))
+  .catch(err => console.error('DB connection failed:', err));
 
 // Registration endpoint
 app.post('/register', async (req, res) => {
@@ -25,13 +49,15 @@ app.post('/register', async (req, res) => {
     });
     if (existingUser) {
       return res.status(409).json({
-        error: existingUser.phone === phone ?
-          "Phone already registered" : "Device already registered"
+        error: existingUser.phone === phone
+          ? "Phone already registered"
+          : "Device already registered"
       });
     }
     await User.create({ phone, visitorId });
     res.json({ success: true });
   } catch (error) {
+    console.error('Registration error:', error);
     res.status(500).json({ error: "Registration failed" });
   }
 });
@@ -49,11 +75,13 @@ app.post('/login', async (req, res) => {
     }
     res.json({ success: true });
   } catch (error) {
+    console.error('Login error:', error);
     res.status(500).json({ error: "Login failed" });
   }
 });
 
-const PORT = 3001;
+// Dynamic port for deployment platforms like Render
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
