@@ -150,7 +150,8 @@ const AuthFingerprint = () => {
       } catch (e) {
         data = {};
       }
-      if (!response.ok) {
+
+      if (!response.ok || !data.success) {
         // Show specific error messages for registration and login
         if (phase === "register") {
           if (data.error === "Phone already registered") {
@@ -179,8 +180,14 @@ const AuthFingerprint = () => {
         setPhase("login");
         setPhone("");
       } else {
-        setStatus("Access Granted!");
-        setSuccess(true);
+        // Only set success to true if we have a successful response with success: true
+        if (data.success) {
+          setStatus("Access Granted!");
+          setSuccess(true);
+        } else {
+          setStatus("Access Denied - Invalid credentials");
+          setSuccess(false);
+        }
       }
     } catch (error) {
       setStatus(error.message || "An error occurred");
