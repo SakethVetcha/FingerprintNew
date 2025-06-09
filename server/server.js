@@ -1,11 +1,5 @@
-require('dotenv').config(); // ← Add this as the first line
-
-const express = require('express');
-const bodyParser = require('body-parser');
-const cors = require('cors');
-const sequelize = require('./config/Database');
-const User = require('./models/User');
-// ...rest of your imports and code
+// Load environment variables first
+require('dotenv').config();
 
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -55,8 +49,9 @@ app.post('/register', async (req, res) => {
     });
     if (existingUser) {
       return res.status(409).json({
-        error: existingUser.phone === phone ?
-          "Phone already registered" : "Device already registered"
+        error: existingUser.phone === phone
+          ? "Phone already registered"
+          : "Device already registered"
       });
     }
     await User.create({ phone, visitorId });
@@ -90,4 +85,3 @@ const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-
