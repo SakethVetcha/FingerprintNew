@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import FingerprintJS from "@fingerprintjs/fingerprintjs";
 import styled, { keyframes } from "styled-components";
 import { ReactComponent as ThumbIdle } from "../thumb (2).svg";
@@ -118,6 +118,31 @@ const AuthFingerprint = () => {
   const [success, setSuccess] = useState(null);
   const [visitorId, setVisitorId] = useState("");
 
+  // Test server connection on component mount
+  useEffect(() => {
+    const testConnection = async () => {
+      try {
+        const response = await fetch('http://localhost:3001/register', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ phone: '1234567890', visitorId: 'test' }),
+        });
+        console.log('Server test response:', response.status);
+        if (response.ok) {
+          setStatus("Server is connected and ready");
+        } else {
+          setStatus("Server is running but returned an error");
+        }
+      } catch (error) {
+        console.error('Server connection test failed:', error);
+        setStatus("Cannot connect to server. Please check if the server is running.");
+      }
+    };
+    testConnection();
+  }, []);
+
   // Handle Scan (used for both register and login)
   const handleScan = async () => {
     if (isScanning) return;
@@ -137,66 +162,91 @@ const AuthFingerprint = () => {
 
       // Use backend API instead of localStorage
       const endpoint = phase === "register" ? "/register" : "/login";
-      const response = await fetch(`https://fingerprintnew.onrender.com${endpoint}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, visitorId: result.visitorId }),
-      });
-
-      let data = {};
-      const text = await response.text();
+      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+      
       try {
-        data = text ? JSON.parse(text) : {};
-      } catch (e) {
-        data = {};
-      }
+        console.log('Sending request to:', `${API_URL}${endpoint}`);
+        console.log('Request body:', { phone, visitorId: result.visitorId });
+        
+        const response = await fetch(`${API_URL}${endpoint}`, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+          },
+          body: JSON.stringify({ phone, visitorId: result.visitorId }),
+        });
 
-      if (!response.ok || !data.success) {
-        // Show specific error messages for registration and login
-        if (phase === "register") {
-          if (data.error === "Phone already registered") {
-            setStatus("This phone number is already registered. Please login or use a different number.");
-          } else if (data.error === "Device already registered") {
-            setStatus("This fingerprint is already registered with another phone number.");
+        console.log('Response status:', response.status);
+        let data = {};
+        const text = await response.text();
+        console.log('Raw response:', text);
+        
+        try {
+          data = text ? JSON.parse(text) : {};
+          console.log('Parsed response:', data);
+        } catch (e) {
+          console.error('JSON parse error:', e);
+          data = {};
+        }
+
+        if (!response.ok) {
+          console.log('Response not OK:', response.status);
+          // Show specific error messages for registration and login
+          if (phase === "register") {
+            if (data.error === "Phone already registered") {
+              setStatus("This phone number is already registered. Please login or use a different number.");
+            } else if (data.error === "Device already registered") {
+              setStatus("This fingerprint is already registered with another phone number.");
+            } else {
+              setStatus(data.error || "Registration failed. Please try again.");
+            }
           } else {
-            setStatus(data.error || "Registration failed");
+            if (data.error === "Phone not registered") {
+              setStatus("This phone number is not registered. Please register first.");
+            } else if (data.error === "Fingerprint mismatch") {
+              setStatus("Fingerprint does not match the registered device for this phone number.");
+            } else {
+              setStatus(data.error || "Login failed. Please try again.");
+            }
+          }
+          setSuccess(false);
+          return;
+        }
+
+        // If we get here, response was OK
+        if (phase === "register") {
+          if (data.success) {
+            setStatus("Registration successful! You can now login.");
+            setSuccess(true);
+            setPhase("login");
+            setPhone("");
+          } else {
+            setStatus("Registration failed. Please try again.");
+            setSuccess(false);
           }
         } else {
-          if (data.error === "Phone not registered") {
-            setStatus("This phone number is not registered. Please register first.");
-          } else if (data.error === "Fingerprint mismatch") {
-            setStatus("Fingerprint does not match the registered device for this phone number.");
+          if (data.success) {
+            setStatus("Access Granted!");
+            setSuccess(true);
           } else {
-            setStatus(data.error || "Login failed");
+            setStatus("Access Denied - Invalid credentials");
+            setSuccess(false);
           }
         }
+      } catch (error) {
+        console.error('Network error:', error);
+        setStatus("Cannot connect to server. Please check if the server is running.");
         setSuccess(false);
-        return;
-      }
-
-      if (phase === "register") {
-        setStatus("Registered! You can now login.");
-        setSuccess(true);
-        setPhase("login");
-        setPhone("");
-      } else {
-        // Only set success to true if we have a successful response with success: true
-        if (data.success) {
-          setStatus("Access Granted!");
-          setSuccess(true);
-        } else {
-          setStatus("Access Denied - Invalid credentials");
-          setSuccess(false);
+      } finally {
+        setIsScanning(false);
+        if (phase === "login") {
+          setTimeout(() => setVisitorId(""), 4000);
         }
       }
     } catch (error) {
       setStatus(error.message || "An error occurred");
       setSuccess(false);
-    } finally {
-      setIsScanning(false);
-      if (phase === "login") {
-        setTimeout(() => setVisitorId(""), 4000);
-      }
     }
   };
 
