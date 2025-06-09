@@ -143,7 +143,13 @@ const AuthFingerprint = () => {
         body: JSON.stringify({ phone, visitorId: result.visitorId }),
       });
 
-      const data = await response.json();
+      let data = {};
+      const text = await response.text();
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch (e) {
+        data = {};
+      }
       if (!response.ok) throw new Error(data.error || "Request failed");
 
       if (phase === "register") {
